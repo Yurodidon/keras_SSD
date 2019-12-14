@@ -57,8 +57,10 @@ def SSD(input_shape, num_classes=21):
 
     img_size = (input_shape[1], input_shape[0])
 
-    def predict_block(input, name, num_priors, min_size,
-                      aspect_ratio, max_size=None, flip=True, clip=True, variances=[0.1, 0.1, 0.2, 0.2]):
+    def predict_block(input, name, num_priors, min_size, aspect_ratio, max_size=None,
+                    flip=True, clip=True, variances=[0.1, 0.1, 0.2, 0.2], do_norm=True):
+        if(do_norm):
+            input = Normalization(20, name=f'{name}_norm')(input)
         origin_loc = Conv2D(num_priors * 4, (3, 3), name=f"{name}_mbox_loc", padding='same')(input)
         origin_conf = Conv2D(num_priors * num_classes, (3, 3), name=f"{name}_mbox_conf", padding='same')(input)
         loc = Flatten(name=f"{name}_mbox_loc_flat")(origin_loc)
@@ -68,7 +70,7 @@ def SSD(input_shape, num_classes=21):
         return conf, loc, priorbox
 
     # preidctions
-    conv4_3_conf, conv4_3_loc, conv4_3_priorbox = predict_block(conv4_3, 'conv4_3', 3, 30.0, [2])
+    conv4_3_conf, conv4_3_loc, conv4_3_priorbox = predict_block(conv4_3, 'conv4_3', 3, 30.0, [2], do_norm=True)
     fc7_conf, fc7_loc, fc7_priorbox = predict_block(fc7, 'fc7', 6, 60.0, [2, 3], 114.0)
     conv6_2_conf, conv6_2_loc, conv6_2_priorbox = predict_block(conv6_2, 'conv6_2', 6, 114.0, [2, 3], 168.0)
     conv7_2_conf, conv7_2_loc, conv7_2_priorbox = predict_block(conv7_2, 'conv7_2', 6, 168.0, [2, 3], 222.0)

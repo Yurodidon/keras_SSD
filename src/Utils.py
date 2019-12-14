@@ -1,23 +1,8 @@
-"""Some utils for SSD."""
-
 import numpy as np
 import tensorflow as tf
 
 
 class BBoxUtility(object):
-    """Utility class to do some stuff with bounding boxes and priors.
-
-    # Arguments
-        num_classes: Number of classes including background.
-        priors: Priors and variances, numpy tensor of shape (num_priors, 8),
-            priors[i] = [xmin, ymin, xmax, ymax, varxc, varyc, varw, varh].
-        overlap_threshold: Threshold to assign box to a prior.
-        nms_thresh: Nms threshold.
-        top_k: Number of total bboxes to be kept per image after nms step.
-
-    # References
-        https://arxiv.org/abs/1512.02325
-    """
     # TODO add setter methods for nms_thresh and top_K
     def __init__(self, num_classes, priors=None, overlap_threshold=0.5,
                  nms_thresh=0.45, top_k=400):
@@ -34,39 +19,7 @@ class BBoxUtility(object):
                                                 iou_threshold=self._nms_thresh)
         self.sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
 
-    @property
-    def nms_thresh(self):
-        return self._nms_thresh
-
-    @nms_thresh.setter
-    def nms_thresh(self, value):
-        self._nms_thresh = value
-        self.nms = tf.image.non_max_suppression(self.boxes, self.scores,
-                                                self._top_k,
-                                                iou_threshold=self._nms_thresh)
-
-    @property
-    def top_k(self):
-        return self._top_k
-
-    @top_k.setter
-    def top_k(self, value):
-        self._top_k = value
-        self.nms = tf.image.non_max_suppression(self.boxes, self.scores,
-                                                self._top_k,
-                                                iou_threshold=self._nms_thresh)
-
     def iou(self, box):
-        """Compute intersection over union for the box with all priors.
-
-        # Arguments
-            box: Box, numpy tensor of shape (4,).
-
-        # Return
-            iou: Intersection over union,
-                numpy tensor of shape (num_priors).
-        """
-        # compute intersection
         inter_upleft = np.maximum(self.priors[:, :2], box[:2])
         inter_botright = np.minimum(self.priors[:, 2:4], box[2:])
         inter_wh = inter_botright - inter_upleft
@@ -80,16 +33,6 @@ class BBoxUtility(object):
         return iou
 
     def encode_box(self, box, return_iou=True):
-        """Encode box for training, do it only for assigned priors.
-
-        # Arguments
-            box: Box, numpy tensor of shape (4,).
-            return_iou: Whether to concat iou to encoded values.
-
-        # Return
-            encoded_box: Tensor with encoded box
-                numpy tensor of shape (num_priors, 4 + int(return_iou)).
-        """
         iou = self.iou(box)
         encoded_box = np.zeros((self.num_priors, 4 + return_iou))
         assign_mask = iou > self.overlap_threshold
@@ -116,20 +59,6 @@ class BBoxUtility(object):
         return encoded_box.ravel()
 
     def assign_boxes(self, boxes):
-        """Assign boxes to priors for training.
-
-        # Arguments
-            boxes: Box, numpy tensor of shape (num_boxes, 4 + num_classes),
-                num_classes without background.
-
-        # Return
-            assignment: Tensor with assigned boxes,
-                numpy tensor of shape (num_boxes, 4 + num_classes + 8),
-                priors in ground truth are fictitious,
-                assignment[:, -8] has 1 if prior should be penalized
-                    or in other words is assigned to some ground truth box,
-                assignment[:, -7:] are all 0. See loss for more details.
-        """
         assignment = np.zeros((self.num_priors, 4 + self.num_classes + 8))
         assignment[:, 4] = 1.0
         if len(boxes) == 0:
@@ -151,16 +80,6 @@ class BBoxUtility(object):
         return assignment
 
     def decode_boxes(self, mbox_loc, mbox_priorbox, variances):
-        """Convert bboxes from local predictions to shifted priors.
-
-        # Arguments
-            mbox_loc: Numpy array of predicted locations.
-            mbox_priorbox: Numpy array of prior boxes.
-            variances: Numpy array of variances.
-
-        # Return
-            decode_bbox: Shifted priors.
-        """
         prior_width = mbox_priorbox[:, 2] - mbox_priorbox[:, 0]
         prior_height = mbox_priorbox[:, 3] - mbox_priorbox[:, 1]
         prior_center_x = 0.5 * (mbox_priorbox[:, 2] + mbox_priorbox[:, 0])
@@ -186,21 +105,6 @@ class BBoxUtility(object):
 
     def detection_out(self, predictions, background_label_id=0, keep_top_k=200,
                       confidence_threshold=0.01):
-        """Do non maximum suppression (nms) on prediction results.
-
-        # Arguments
-            predictions: Numpy array of predicted values.
-            num_classes: Number of classes for prediction.
-            background_label_id: Label of background class.
-            keep_top_k: Number of total bboxes to be kept per image
-                after nms step.
-            confidence_threshold: Only consider detections,
-                whose confidences are larger than a threshold.
-
-        # Return
-            results: List of predictions for every picture. Each prediction is:
-                [label, confidence, xmin, ymin, xmax, ymax]
-        """
         mbox_loc = predictions[:, :, :4]
         variances = predictions[:, :, -4:]
         mbox_priorbox = predictions[:, :, -8:-4]

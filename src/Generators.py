@@ -3,6 +3,7 @@ import os
 import scipy.misc
 import random
 from xml.etree import ElementTree
+import cv2 as cv
 from keras.applications.imagenet_utils import preprocess_input
 
 
@@ -84,17 +85,18 @@ class Yielder(object):
         while True:
             out_images, out_ann = [], []
             random.shuffle(self.images)
-            self.annotations = [self.AnnPath + x.split('.')[0] + ".xml" for x in self.images]
+            self.annotations = [self.AnnPath + x.split('/')[-1].split('.')[0] + ".xml" for x in self.images]
             cnt = 0
             for index in range(self.start, self.end):
-                cnt += 1
-                img = scipy.misc.imread(self.images[index]).astype('float32')
-                img = scipy.misc.imresize(img, (self.image_size[0], self.image_size[1])).astype('float32')
+                # img = scipy.misc.imread(self.images[index]).astype('float32')
+                # img = scipy.misc.imresize(img, (self.image_size[0], self.image_size[1])).astype('float32')
+                img = cv.imread(self.images[index]).astype('float32')
+                img = cv.resize(img, (self.image_size[0], self.image_size[1])).astype('float32')
                 ann = xmlExtractor(self.annotations[index], self.classes)
                 ann = self.utils.assign_boxes(ann)
                 out_images.append(img)
                 out_ann.append(ann)
-                if (cnt == self.batch_size):
-                    tmp, tmp_a = np.array(out_images).astype('float32'), np.array(out_ann)
+                if (len(out_images) == self.batch_size):
+                    tmp, tmp_a = np.array(out_images).astype('float32'), np.array(out_ann).astype('float32')
                     out_images, out_ann, cnt = [], [], 0
-                    yield preprocess_input(tmp), tmp_a
+                    yield tmp / 255., tmp_a

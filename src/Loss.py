@@ -62,7 +62,7 @@ class MultiboxLoss(object):
         # Returns
             softmax_loss: Softmax loss, tensor of shape (?, num_boxes).
         """
-        y_pred = tf.maximum(tf.minimum(y_pred, 1 - 1e-15), 1e-15)
+        y_pred = tf.maximum(tf.minimum(y_pred, 1), 1e-15)
         softmax_loss = -tf.reduce_sum(y_true * tf.log(y_pred),
                                       axis=-1)
         return softmax_loss
